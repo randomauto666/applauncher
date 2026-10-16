@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="App Launcher">
+<title>App Launcher</title>
+<style>
+:root{
+  --bg:#f4f5f7;--card:#fff;--text:#1d2129;--muted:#69707a;--line:#dadde2;
+  --primary:#2054a8;--onprimary:#fff;--bad:#b93228;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){--bg:#14171c;--card:#1e2229;--text:#eceff3;--muted:#98a1ad;--line:#333a44;--primary:#5b8def;--onprimary:#0b1220;--bad:#ff8a7e}
+}
+:root[data-theme="dark"]{--bg:#14171c;--card:#1e2229;--text:#eceff3;--muted:#98a1ad;--line:#333a44;--primary:#5b8def;--onprimary:#0b1220;--bad:#ff8a7e}
+*{box-sizing:border-box}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:720px;margin:0 auto;padding:20px 16px 40px}
+h1{margin:0;font-size:26px;color:var(--primary)}
+.sub{color:var(--muted);margin:2px 0 14px}
+.bar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px}
+button{font:inherit;cursor:pointer;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--text);padding:12px 16px;min-height:46px}
+button.p{background:var(--primary);color:var(--onprimary);border-color:var(--primary);font-weight:600}
+.row{display:flex;align-items:center;gap:12px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:10px}
+.ic{font-size:30px;width:44px;text-align:center}
+.tx{flex:1;min-width:0}
+.nm{font-weight:600}
+.nt{font-size:13px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row button.p{padding:10px 18px}
+.x{padding:10px 12px;color:var(--bad)}
+form{display:none;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:14px}
+form.on{display:block}
+input{width:100%;font:inherit;padding:11px;margin:4px 0 10px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--text)}
+label{font-size:13px;color:var(--muted)}
+#toast{position:fixed;left:12px;right:12px;bottom:calc(14px + env(safe-area-inset-bottom,0px));background:var(--text);color:var(--bg);border-radius:12px;padding:12px 14px;display:none;gap:10px;align-items:center;justify-content:space-between;max-width:696px;margin:0 auto}
+#toast.on{display:flex}
+#toast button{background:var(--primary);color:var(--onprimary);border:0;padding:8px 12px;min-height:0;white-space:nowrap}
+.hint{font-size:13px;color:var(--muted);margin-top:18px}
+</style>
+</head>
+<body>
+<main>
+  <h1>App Launcher</h1>
+  <div class="sub" id="plat"></div>
+  <div class="bar">
+    <button class="p" id="all">Alle nacheinander starten</button>
+    <button id="add">+ Hinzufügen</button>
+  </div>
+  <form id="f">
+    <label>Name</label><input id="fn" placeholder="z. B. WhatsApp" autocomplete="off">
+    <label>App-Link oder Webadresse</label><input id="fu" placeholder="whatsapp:// oder https://…" autocomplete="off" autocapitalize="off" inputmode="url">
+    <button class="p" type="submit">Speichern</button>
+  </form>
+  <div id="list"></div>
+  <p class="hint">Auf Handy und Tablet kann eine Webseite immer nur eine App öffnen. „Alle nacheinander“ startet deshalb die erste App; wenn du zurückkommst, geht es mit „Weiter“ zur nächsten. Zum Startbildschirm hinzufügen: iOS über Teilen, Android über das Browser-Menü.</p>
+</main>
+<div id="toast"><span id="tt"></span><button id="tb" style="display:none">Web-Version</button></div>
+
+<script>
+var ua=navigator.userAgent;
+var P=/android/i.test(ua)?'android':(/iphone|ipad|ipod/i.test(ua)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1))?'ios':'desktop';
+document.getElementById('plat').textContent='Erkannt: '+({android:'Android',ios:'iPhone / iPad',desktop:'Computer'})[P];
+
+var DEF=[
+ {n:'Microsoft Teams',i:'💬',a:'msteams://',w:'https://teams.microsoft.com'},
+ {n:'Excel',i:'📊',a:'ms-excel:',w:'https://www.office.com/launch/excel'},
+ {n:'IntelliJ IDEA',i:'🧠',a:null,w:'https://www.jetbrains.com/idea/',note:'Keine Mobile-App – öffnet die Webseite'},
+ {n:'Word',i:'📝',a:'ms-word:',w:'https://www.office.com/launch/word'},
+ {n:'PowerPoint',i:'📽️',a:'ms-powerpoint:',w:'https://www.office.com/launch/powerpoint'},
+ {n:'Edge',i:'🌐',a:{ios:'microsoft-edge-https://www.bing.com',android:'intent://www.bing.com#Intent;scheme=https;package=com.microsoft.emmx;end',desktop:'microsoft-edge:https://www.bing.com'},w:'https://www.bing.com'},
+ {n:'Dateien (Explorer)',i:'📁',a:{ios:'shareddocuments://',android:'intent:#Intent;action=android.intent.action.VIEW;data=content://com.android.externalstorage.documents/root/primary;type=vnd.android.document/root;end'},w:null,note:'Auf dem Computer: Windows-Version nutzen'}
+];
+
+var custom=[];
+try{custom=JSON.parse(localStorage.getItem('al_custom')||'[]')}catch(e){custom=[]}
+function saveCustom(){try{localStorage.setItem('al_custom',JSON.stringify(custom))}catch(e){}}
+function all(){return DEF.concat(custom.map(function(c){return{n:c.n,i:'🔗',a:c.u,w:null,custom:true,note:c.u}}))}
+function appUrl(e){return typeof e.a==='string'?e.a:(e.a&&e.a[P])||null}
+
+var tt=document.getElementById('tt'),tb=document.getElementById('tb'),toast=document.getElementById('toast'),tmr;
+function say(msg,web){
+  tt.textContent=msg;
+  tb.style.display=web?'':'none';
+  tb.onclick=function(){window.open(web,'_blank');toast.classList.remove('on')};
+  toast.classList.add('on');clearTimeout(tmr);tmr=setTimeout(function(){toast.classList.remove('on')},7000);
+}
+
+function launch(e){
+  var u=appUrl(e);
+  if(!u){
+    if(e.w){window.open(e.w,'_blank')}else{say(e.n+': auf diesem Gerät nicht verfügbar.')}
+    return;
+  }
+  location.href=u;
+  setTimeout(function(){
+    if(!document.hidden){say(e.n+' hat sich nicht geöffnet. Ist die App installiert?',e.w)}
+  },1600);
+}
+
+var list=document.getElementById('list');
+function render(){
+  list.innerHTML='';
+  all().forEach(function(e){
+    var r=document.createElement('div');r.className='row';
+    var u=appUrl(e);
+    var note=e.note||(u?'App öffnen':(e.w?'Webseite öffnen':'Nicht verfügbar'));
+    r.innerHTML='<div class="ic"></div><div class="tx"><div class="nm"></div><div class="nt"></div></div>';
+    r.querySelector('.ic').textContent=e.i;
+    r.querySelector('.nm').textContent=e.n;
+    r.querySelector('.nt').textContent=note;
+    var b=document.createElement('button');b.className='p';b.textContent='Starten';
+    b.onclick=function(){launch(e)};
+    r.appendChild(b);
+    if(e.custom){
+      var x=document.createElement('button');x.className='x';x.textContent='✕';x.setAttribute('aria-label','Entfernen');
+      x.onclick=function(){custom=custom.filter(function(c){return c.n!==e.n||c.u!==e.a});saveCustom();render()};
+      r.appendChild(x);
+    }
+    list.appendChild(r);
+  });
+}
+
+var allBtn=document.getElementById('all'),q=null,qi=0;
+function qItems(){return all().filter(function(e){return appUrl(e)||e.w})}
+allBtn.onclick=function(){
+  if(q===null){q=qItems();qi=0}
+  var e=q[qi++];
+  launch(e);
+  if(qi>=q.length){q=null;allBtn.textContent='Alle nacheinander starten'}
+  else{allBtn.textContent='Weiter: '+q[qi].n+' ('+(qi+1)+'/'+q.length+')'}
+};
+
+var f=document.getElementById('f');
+document.getElementById('add').onclick=function(){f.classList.toggle('on');document.getElementById('fn').focus()};
+f.onsubmit=function(ev){
+  ev.preventDefault();
+  var n=document.getElementById('fn').value.trim(),u=document.getElementById('fu').value.trim();
+  if(!n||!u)return;
+  if(!/^[a-z][a-z0-9+.-]*:/i.test(u))u='https://'+u;
+  custom.push({n:n,u:u});saveCustom();
+  f.reset();f.classList.remove('on');render();
+};
+render();
+</script>
+</body>
+</html>
